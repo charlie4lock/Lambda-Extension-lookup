@@ -1,0 +1,36 @@
+
+import boto3
+import json
+dynamodb = boto3.resource('dynamodb')
+
+def lambda_handler(event, context):
+    #print(event)
+    extension=event['Details']['ContactData']['Attributes'].get('Agentsfullnumber',"Not Available")
+    table = dynamodb.Table('Agentsfullnumber')
+    try:
+        response = table.get_item(
+                Key={
+                    'Agentnumbers': agentnumbers
+                    }
+                )
+    except ClientError as e:
+        print(e.response['Error']['Message'])
+        return {
+                "Success":"False",
+                "Reason":e.response['Error']['Message']
+            }
+    else:
+        #item = response['Item']
+        print("GetItem succeeded:")
+        print(json.dumps(response))
+        if "Item" in response:
+            return {
+                "Success":"True",
+                "userlogin":response["Item"]["userlogin"],
+                "FallBackQueue":response["Item"]["FallBackQueue"]
+            }
+        else:
+            return {
+                "Success":"False",
+                "Reason":"No Records Found"
+            }
