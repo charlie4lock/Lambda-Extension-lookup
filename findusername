@@ -1,36 +1,60 @@
-
 import boto3
+from botocore.exceptions import ClientError
 import json
 dynamodb = boto3.resource('dynamodb')
 
 def lambda_handler(event, context):
     #print(event)
-    extension=event['Details']['ContactData']['Attributes'].get('Agentsfullnumber',"Not Available")
+   
+    lookup_number = None
     table = dynamodb.Table('Agentsfullnumber')
+    # Setup a default
+    response = None
+    lookup_value = {}
     try:
-        response = table.get_item(
-                Key={
-                    'Agentnumbers': agentnumbers
-                    }
-                )
-    except ClientError as e:
-        print(e.response['Error']['Message'])
-        return {
-                "Success":"False",
-                "Reason":e.response['Error']['Message']
+        # Presume this is being set
+        agent_number = event['Details']['ContactData']['Attributes'].get('Agentsfullnumber',"Not Available")
+        
+        # Check if the variable is greater than 3 characters and is not the default
+        if len(agent_number) > 3 and agent_number != "Not Available":
+            # Python way of getting last 3 characters of a string. This is likely the one we hit
+            lookup_number = "5" + agent_number[-3:]
+        elif len(agent_number) == 3:
+            # If there is another attribute to get, such as a keyed extension we can instead use that
+            lookup_number = "5" + agent_number
+        else:
+            raise ValueError("Need a value provided for 'Agentsfullnumber'")
+        
+        lookup_value = table.get_item(
+            Key={
+                'Agentnumbers': lookup_number
             }
-    else:
-        #item = response['Item']
+        )
         print("GetItem succeeded:")
-        print(json.dumps(response))
-        if "Item" in response:
-            return {
+        print(json.dumps(lookup_value))
+        if "Item" in lookup_value:
+            # Value found!
+            response = {
                 "Success":"True",
-                "userlogin":response["Item"]["userlogin"],
-                "FallBackQueue":response["Item"]["FallBackQueue"]
+                "userlogin":lookup_value["Item"]["userlogin"],
+                "FallBackQueue":lookup_value["Item"]["FallBackQueue"],
+                "Reason": "Details Found"
             }
         else:
-            return {
+            # No value found :(
+            response = {
                 "Success":"False",
+                "userlogin":"N/A",
+                "FallBackQueue":"N/A",
                 "Reason":"No Records Found"
             }
+    except Exception as e:
+        print(e)
+        response = {
+            "Success":"False",
+            "userlogin":"N/A",
+            "FallBackQueue":"N/A",
+            "Reason":str(e)
+        }
+    # Return response once for clarity
+    return response
